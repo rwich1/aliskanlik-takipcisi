@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>Alışkanlık Takipçisi</title>
+<meta name="description" content="Aylık alışkanlık tablosu, günlük ve haftalık ilerleme, ruh hali ve motivasyon takibi.">
+<meta name="theme-color" content="#73675D" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#2A2622" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Alışkanlık">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/figtree-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<!-- deferred scripts are requested in parallel and run in order after the page is parsed -->
+<script src="firebase-config.js" defer fetchpriority="high"></script>
+<script src="storage.js" defer fetchpriority="high"></script>
+<script src="app.js" defer fetchpriority="high"></script>
+<script src="theme.js"></script>
+</head>
+<body>
+<main class="wrap">
+  <div class="top">
+    <section class="panel head" aria-label="Takvim">
+      <h1 class="title"><span class="sub">Alışkanlık</span> <span class="main">Takipçisi</span></h1>
+      <div class="monthnav">
+        <button class="iconbtn" id="prevM" type="button" aria-label="Önceki ay">‹</button>
+        <div class="label" id="monthLabel">—</div>
+        <button class="iconbtn" id="nextM" type="button" aria-label="Sonraki ay">›</button>
+      </div>
+      <div class="meta">
+        <div class="row2">
+          <button class="btn" id="editBtn" type="button">Alışkanlıklarımı düzenle</button>
+          <button class="iconbtn" id="settingsBtn" type="button" aria-label="Ayarlar: hesap, yedek, görünüm" title="Ayarlar">⚙</button>
+        </div>
+        <button class="sync" id="sync" type="button" data-s="local"><i></i><span>Bu cihazda kayıtlı</span></button>
+      </div>
+    </section>
+
+    <section class="panel today-card" id="bugun" aria-label="Seçili gün">
+      <div class="band" role="heading" aria-level="2"><span id="todayTitle">Bugün</span> <small id="todayCount"></small></div>
+      <div class="daypick">
+        <button class="iconbtn" id="prevD" type="button" aria-label="Önceki gün">‹</button>
+        <div class="d" id="dayLabel"><b>—</b><span></span></div>
+        <button class="iconbtn" id="nextD" type="button" aria-label="Sonraki gün">›</button>
+      </div>
+      <ul class="todo" id="todo"></ul>
+      <div class="scale" id="scale"></div>
+    </section>
+
+    <section class="panel daily"><div class="band" role="heading" aria-level="2">Günlük ilerleme <small>tamamlanan alışkanlık oranı</small></div><div class="chartbox" id="dailyChart"></div></section>
+    <section class="panel weekly"><div class="band" role="heading" aria-level="2">Haftalık ilerleme</div><div class="chartbox" id="weeklyChart"></div></section>
+    <div class="kpi">
+      <section class="panel"><div class="band">Hedef</div><div class="val" id="kGoal">0</div></section>
+      <section class="panel"><div class="band">Tamamlanan</div><div class="val" id="kDone">0</div></section>
+      <section class="panel"><div class="band">Kalan</div><div class="val" id="kLeft">0</div></section>
+    </div>
+    <section class="panel donut"><div class="band" role="heading" aria-level="2">Genel durum</div><div class="chartbox" id="donutChart"></div><div class="note" id="donutNote"></div></section>
+  </div>
+
+  <section class="panel" aria-label="Alışkanlık tablosu">
+    <div class="gridwrap" id="gridwrap"><table class="grid" id="grid"></table></div>
+  </section>
+
+  <div class="bottom">
+    <section class="panel">
+      <div class="band"><span role="heading" aria-level="2">Ruh hali ve motivasyon</span>
+        <div class="legend"><span><i style="background:var(--mood)"></i>Ruh hali</span><span><i style="background:var(--motiv)"></i>Motivasyon</span></div>
+      </div>
+      <div class="chartbox moodbox" id="moodChart"></div>
+    </section>
+    <section class="panel">
+      <div class="band" role="heading" aria-level="2">En istikrarlı alışkanlıklar <small>bu ay</small></div>
+      <ol class="rank" id="rank"></ol>
+    </section>
+  </div>
+</main>
+<div id="tip" hidden></div>
+<div id="sheetRoot"></div>
+<div id="toastRoot"></div>
+
+</body>
+</html>

@@ -1,0 +1,107 @@
+{
+  "name": "aliskanlik-takipcisi",
+  "version": "1.0.0",
+  "description": "Alışkanlık Takipçisi — Android, Windows ve web (PWA) için alışkanlık tablosu",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "npx --yes http-server@14.1.1 www -p 8080 -c-1",
+    "build:firebase": "esbuild scripts/firebase-entry.js --bundle --format=iife --global-name=FB --minify --target=es2019 --legal-comments=none --outfile=www/vendor/firebase.js",
+    "icons": "python3 scripts/make-icons.py",
+    "electron": "electron .",
+    "build:win": "electron-builder --win nsis portable --publish never",
+    "build:linux": "electron-builder --linux AppImage --publish never",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:icons": "npx --yes @capacitor/assets@3.0.5 generate --android --iconBackgroundColor \"#73675D\" --iconBackgroundColorDark \"#4A413A\" --splashBackgroundColor \"#E9E5DF\" --splashBackgroundColorDark \"#171513\" && python3 android/tools/launcher-icons.py",
+    "android:apk": "cap sync android && cd android && ./gradlew assembleDebug",
+    "android:apk:win": "cap sync android && cd android && gradlew.bat assembleDebug",
+    "android:release": "cap sync android && cd android && ./gradlew assembleRelease"
+  },
+  "author": "Alışkanlık Takipçisi",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@fontsource-variable/bricolage-grotesque": "^5.1.0",
+    "@fontsource/figtree": "^5.1.1",
+    "@fontsource/ibm-plex-mono": "^5.1.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.17.0",
+    "esbuild": "^0.23.1",
+    "firebase": "^10.14.1"
+  },
+  "private": true,
+  "build": {
+    "appId": "app.aliskanlik.takipci",
+    "productName": "Alışkanlık Takipçisi",
+    "copyright": "Alışkanlık Takipçisi",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "www/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "artifactName": "Aliskanlik-Takipcisi-${version}-${arch}-${target}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "AliskanlikTakipcisi"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Alışkanlık Takipçisi",
+      "language": "1055",
+      "installerLanguages": [
+        "tr_TR"
+      ],
+      "artifactName": "Aliskanlik-Takipcisi-Kurulum-${version}.${ext}",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "Aliskanlik-Takipcisi-${version}-portable.exe"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Utility",
+      "artifactName": "Aliskanlik-Takipcisi-${version}.${ext}",
+      "executableName": "aliskanlik-takipcisi"
+    },
+    "npmRebuild": false,
+    "electronLanguages": [
+      "tr",
+      "en-US"
+    ],
+    "publish": null,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    }
+  }
+}

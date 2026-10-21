@@ -1,0 +1,12 @@
+{
+  "appId": "app.aliskanlik.takipci",
+  "appName": "Alışkanlık Takipçisi",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#00000000"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

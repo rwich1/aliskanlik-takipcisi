@@ -1,0 +1,285 @@
+name: Derle ve yayınla
+
+# push to main  -> web site (GitHub Pages) + APK + EXE as downloadable artifacts
+# push tag v*   -> APK + EXE, attached to a GitHub Release
+# manual run    -> Actions tab, "Run workflow"
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web sitesi (GitHub Pages)
+    # Pages' default environment rule only allows the default branch, so tags are skipped.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Pages ayarları
+        uses: actions/configure-pages@v6
+
+      - name: Önbellek sürümünü damgala
+        # A new service-worker version per deploy makes installed web apps pick up the new files at once.
+        # The ?v= on the page's own files keeps a freshly loaded page from mixing old and new scripts.
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i "s/^const VERSION = \"[^\"]*\";/const VERSION = \"$v\";/" www/sw.js
+          sed -i -E "s/(src|href)=\"(styles\.css|theme\.js|firebase-config\.js|storage\.js|app\.js)\"/\1=\"\2?v=$v\"/g" www/index.html
+          grep -n "^const VERSION" www/sw.js
+          grep -nE "\?v=" www/index.html
+
+      - name: www klasörünü paketle
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: www
+
+      - name: Yayınla
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      # Read by android/app/build.gradle; must grow on every build so updates install.
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
+      # The APK does not need Electron; skip its ~100 MB download in this job.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Node.js kur
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Android SDK kur
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-34 build-tools;34.0.0
+          log-accepted-android-sdk-licenses: false
+
+      - name: Sürüm numarasını belirle
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          # v1.2.3, v1.2 and v1 are all accepted (missing parts become 0); v1.2.3-beta.1 keeps its suffix.
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v([0-9]+)(\.([0-9]+))?(\.([0-9]+))?(-[0-9A-Za-z.-]+)?$ ]]; then
+            version="${BASH_REMATCH[1]}.${BASH_REMATCH[3]:-0}.${BASH_REMATCH[5]:-0}${BASH_REMATCH[6]}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "ANDROID_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "Sürüm: $version (versionCode $ANDROID_VERSION_CODE)"
+
+      - name: Bağımlılıkları yükle
+        run: npm ci
+
+      - name: Web dosyalarını Android projesine kopyala
+        run: npx cap sync android
+
+      - name: Debug APK derle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: İmza anahtarı tanımlı mı?
+        id: signing
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS" ] && [ -n "$KS_PASS" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASS" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "İmza anahtarı bulundu: imzalı release APK de derlenecek."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "İmza anahtarı (ANDROID_* secrets) yok: yalnızca debug APK derlenecek."
+          fi
+
+      - name: İmzalı release APK derle
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          # Tolerates line breaks and certutil's BEGIN/END lines in the secret.
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' \
+            | sed -E 's/-----[^-]*-----//g' | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: APK dosyalarını adlandır
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/Aliskanlik-Takipcisi-$VERSION-debug.apk"
+          release_apk=android/app/build/outputs/apk/release/app-release.apk
+          if [ -f "$release_apk" ]; then
+            cp "$release_apk" "out/Aliskanlik-Takipcisi-$VERSION-release.apk"
+          fi
+          ls -la out
+
+      - name: APK'yı yükle (android-apk)
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: Özet
+        run: |
+          {
+            echo "### Android"
+            echo "APK dosyası bu sayfanın altındaki **Artifacts** bölümünde: \`android-apk\` (zip içinde)."
+            echo
+            for f in out/*.apk; do echo "- $(basename "$f")"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  windows:
+    name: Windows (EXE)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Node.js kur
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Sürüm numarasını belirle
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          # v1.2.3, v1.2 and v1 are all accepted (missing parts become 0); v1.2.3-beta.1 keeps its suffix.
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v([0-9]+)(\.([0-9]+))?(\.([0-9]+))?(-[0-9A-Za-z.-]+)?$ ]]; then
+            version="${BASH_REMATCH[1]}.${BASH_REMATCH[3]:-0}.${BASH_REMATCH[5]:-0}${BASH_REMATCH[6]}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Sürüm: $version"
+
+      - name: Bağımlılıkları yükle
+        run: npm ci
+
+      - name: Tag sürümünü package.json'a yaz
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npm pkg set "version=$VERSION"
+
+      - name: Kurulum ve taşınabilir EXE derle
+        run: npx electron-builder --win nsis portable --publish never
+
+      - name: EXE dosyalarını yükle (windows-exe)
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-exe
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Özet
+        run: |
+          {
+            echo "### Windows"
+            echo "EXE dosyaları bu sayfanın altındaki **Artifacts** bölümünde: \`windows-exe\` (zip içinde)."
+            echo
+            for f in dist/*.exe; do echo "- $(basename "$f")"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: APK'yı indir
+        uses: actions/download-artifact@v8
+        with:
+          name: android-apk
+          path: release
+
+      - name: EXE'leri indir
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-exe
+          path: release
+
+      - name: Dosyaları listele
+        run: ls -la release
+
+      - name: Release oluştur
+        uses: softprops/action-gh-release@v3
+        with:
+          # No "name": a release the user created on GitHub keeps its own title; a bare tag gets the tag name.
+          files: release/*
+          append_body: true
+          fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Hangi dosyayı indirmeliyim?
+
+            - **Android telefon:** `Aliskanlik-Takipcisi-${{ needs.android.outputs.version }}-release.apk` (yoksa `Aliskanlik-Takipcisi-${{ needs.android.outputs.version }}-debug.apk`). Dosyayı telefonda açın; "bilinmeyen uygulamaları yükle" izni istenirse verin.
+            - **Windows, kurulumlu:** `Aliskanlik-Takipcisi-Kurulum-${{ needs.android.outputs.version }}.exe`
+            - **Windows, kurulumsuz (taşınabilir):** `Aliskanlik-Takipcisi-${{ needs.android.outputs.version }}-portable.exe`
+
+            Debug ve release APK farklı anahtarla imzalanır: birinden diğerine geçerken önce telefondaki eski uygulamayı kaldırın.
+            Uygulama imzalı olmadığı için Windows "Windows kişisel bilgisayarınızı korudu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**.

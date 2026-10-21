@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the CSS tokens in www/styles.css (light theme). -->
+    <color name="colorPrimary">#73675D</color>
+    <color name="colorPrimaryDark">#5E544B</color>
+    <color name="colorAccent">#B8692E</color>
+    <!-- Page background (CSS var bg); also the splash and window backdrop. -->
+    <color name="app_background">#E9E5DF</color>
+    <!-- Status bar = header band (CSS var band), same as the PWA theme-color. -->
+    <color name="status_bar">#73675D</color>
+    <!-- Navigation bar before Android 8.1, which cannot draw dark nav icons. -->
+    <color name="navigation_bar_legacy">#73675D</color>
+</resources>

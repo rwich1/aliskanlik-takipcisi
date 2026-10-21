@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Alışkanlık Takipçisi</string>
+    <string name="title_activity_main">Alışkanlık Takipçisi</string>
+    <string name="package_name">app.aliskanlik.takipci</string>
+    <string name="custom_url_scheme">app.aliskanlik.takipci</string>
+</resources>

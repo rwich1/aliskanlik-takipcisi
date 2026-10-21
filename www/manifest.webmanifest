@@ -1,0 +1,23 @@
+{
+  "id": "./",
+  "name": "Alışkanlık Takipçisi",
+  "short_name": "Alışkanlık",
+  "description": "Aylık alışkanlık tablosu, günlük ve haftalık ilerleme, ruh hali ve motivasyon takibi.",
+  "lang": "tr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#E9E5DF",
+  "theme_color": "#73675D",
+  "categories": ["productivity", "health", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Bugün", "short_name": "Bugün", "url": "./#bugun", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
